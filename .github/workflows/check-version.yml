@@ -91,16 +91,16 @@ jobs:
         include:
           - registry: ghcr
             component: backend
-            image_name: hydro-docker-backend
+            image_name: hydro-docker-backend-alpine
           - registry: ghcr
             component: judge
-            image_name: hydro-docker-judge
+            image_name: hydro-docker-judge-alpine
           - registry: dockerhub
             component: backend
-            image_name: hydro-docker-backend
+            image_name: hydro-docker-backend-alpine
           - registry: dockerhub
             component: judge
-            image_name: hydro-docker-judge
+            image_name: hydro-docker-judge-alpine
     permissions:
       contents: read
       packages: write
