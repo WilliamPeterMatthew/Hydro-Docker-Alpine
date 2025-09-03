@@ -59,7 +59,7 @@ RUN wget https://github.com/JetBrains/kotlin/releases/download/v1.9.25/kotlin-co
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
 # 编译安装 GHC + Cabal
-RUN git clone --branch ghc-9.6.2 https://gitlab.haskell.org/ghc/ghc.git /tmp/ghc-src && \
+RUN git clone --branch ghc-9.12.1 https://gitlab.haskell.org/ghc/ghc.git /tmp/ghc-src && \
     cd /tmp/ghc-src && \
     ./boot && \
     ./configure --prefix=/usr/local && \
