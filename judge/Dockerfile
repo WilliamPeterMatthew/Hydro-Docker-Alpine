@@ -61,15 +61,13 @@ RUN ln -sf /usr/bin/python3 /usr/bin/python
 # 安装 GHC
 RUN arch=$(apk --print-arch) && \
     case "$arch" in \
-      x86_64) GHC_URL="https://downloads.haskell.org/~ghc/9.6.2/ghc-9.6.2-x86_64-deb10-linux.tar.xz" ;; \
+      x86_64)  GHC_URL="https://downloads.haskell.org/~ghc/9.6.2/ghc-9.6.2-x86_64-deb10-linux.tar.xz" ;; \
       aarch64) GHC_URL="https://downloads.haskell.org/~ghc/9.6.2/ghc-9.6.2-aarch64-deb10-linux.tar.xz" ;; \
       *) echo "Unsupported architecture: $arch" && exit 1 ;; \
     esac && \
     wget $GHC_URL -O /tmp/ghc.tar.xz && \
-    tar -xJf /tmp/ghc.tar.xz -C /tmp && \
-    /tmp/ghc-9.6.2*/configure --prefix=/usr/local && \
-    make install && \
-    rm -rf /tmp/ghc* /tmp/ghc.tar.xz
+    tar -xJf /tmp/ghc.tar.xz -C /usr/local --strip-components=1 && \
+    rm -rf /tmp/ghc.tar.xz
 
 # 安装 Cabal
 RUN curl -L https://downloads.haskell.org/cabal/cabal-install-3.10.1.0/cabal-install-3.10.1.0.tar.gz -o /tmp/cabal.tar.gz && \
