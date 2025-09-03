@@ -70,9 +70,15 @@ RUN arch=$(apk --print-arch) && \
     rm -rf /tmp/ghc.tar.xz
 
 # 安装 Cabal
-RUN curl -L https://downloads.haskell.org/cabal/cabal-install-3.10.1.0/cabal-install-3.10.1.0.tar.gz -o /tmp/cabal.tar.gz && \
-    tar -xzf /tmp/cabal.tar.gz -C /tmp && \
-    cd /tmp/cabal-install-3.10.1.0 && ./bootstrap.sh && mv cabal /usr/local/bin/ && cd .. && rm -rf /tmp/cabal*
+RUN arch=$(apk --print-arch) && \
+    case "$arch" in \
+      x86_64)  CABAL_URL="https://downloads.haskell.org/cabal/cabal-install-3.10.1.0/cabal-install-3.10.1.0-x86_64-linux.tar.xz" ;; \
+      aarch64) CABAL_URL="https://downloads.haskell.org/cabal/cabal-install-3.10.1.0/cabal-install-3.10.1.0-aarch64-linux.tar.xz" ;; \
+      *) echo "Unsupported architecture: $arch" && exit 1 ;; \
+    esac && \
+    wget $CABAL_URL -O /tmp/cabal.tar.xz && \
+    tar -xJf /tmp/cabal.tar.xz -C /usr/local/bin && \
+    rm -rf /tmp/cabal.tar.xz
 
 # 验证安装结果
 RUN gcc --version && \
