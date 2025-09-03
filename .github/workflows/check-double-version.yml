@@ -117,6 +117,7 @@ jobs:
     if: ${{ needs.check-release.outputs.build_backend == 'true' || needs.check-release.outputs.build_judge == 'true' }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         registry: ['ghcr', 'dockerhub']
         component: ${{ fromJson(needs.check-release.outputs.build_backend == 'true' && needs.check-release.outputs.build_judge == 'true' && '["backend","judge"]' || needs.check-release.outputs.build_backend == 'true' && '["backend"]' || '["judge"]') }}
@@ -152,6 +153,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./${{ matrix.component }}
+          platforms: linux/amd64,linux/arm64/v8
           push: true
           tags: |
             ${{ matrix.registry == 'ghcr' && format('ghcr.io/{0}/{1}:{2}', needs.check-release.outputs.lower_owner, matrix.image_name, (matrix.component == 'backend' && needs.check-release.outputs.backend_tag || needs.check-release.outputs.judge_tag)) || format('{0}/{1}:{2}', secrets.DOCKER_USERNAME, matrix.image_name, (matrix.component == 'backend' && needs.check-release.outputs.backend_tag || needs.check-release.outputs.judge_tag)) }}

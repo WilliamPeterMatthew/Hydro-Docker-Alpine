@@ -1,43 +1,89 @@
-FROM node:22
+FROM node:22-alpine3.22
 
-RUN apt-get -qq update && \
-    apt-get install -y \
-    gcc \
-    python3 \
-    pypy3 \
-    g++ \
-    fpc \
-    fp-compiler \
-    openjdk-17-jdk-headless \
-    rustc \
-    ghc \
-    cabal-install \
-    libjavascriptcoregtk-4.0-bin \
-    golang \
-    ruby \
-    mono-runtime \
-    mono-mcs \
-    kotlin \
-    php \
-    php-cli \
-    nodejs \
-    bash
+# 启用 main/community/testing 仓库
+RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.22/main"       >  /etc/apk/repositories && \
+    echo "http://dl-cdn.alpinelinux.org/alpine/v3.22/community" >> /etc/apk/repositories && \
+    echo "http://dl-cdn.alpinelinux.org/alpine/edge/testing"    >> /etc/apk/repositories && \
+    apk update
 
-RUN wget https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz
-RUN tar -xf Python-2.7.18.tgz
-RUN cd /Python-2.7.18 && ./configure --with-pydebug
-RUN cd /Python-2.7.18 && make -s -j16
-RUN export PATH=$PATH:/Python-2.7.18/
-RUN ln -s /Python-2.7.18/python /usr/bin/python
-RUN ln -s /Python-2.7.18/python /usr/bin/python2
+# 安装基础工具链
+RUN apk add --no-cache \
+      build-base \
+      gcc \
+      g++ \
+      openjdk21 \
+      rust \
+      go \
+      ruby \
+      mono \
+      bash \
+      php \
+      php-cli \
+      nodejs \
+      python3 \
+      py3-pip \
+      pypy3 \
+      wget \
+      curl \
+      ca-certificates \
+      linux-headers \
+      git \
+      fpc
+
+# 建立 python 软链接
+RUN ln -sf /usr/bin/python3 /usr/bin/python
+
+# 安装 Haskell 工具链 (ghc + cabal)
+RUN apk add --no-cache \
+      bash \
+      curl \
+      gcc \
+      g++ \
+      musl-dev \
+      make \
+      ncurses-dev \
+      gmp-dev \
+  && curl -L \
+      https://downloads.haskell.org/~ghcup/x86_64-linux-ghcup \
+      -o /usr/bin/ghcup \
+  && chmod +x /usr/bin/ghcup \
+  && export HOME=/root \
+  && ghcup install ghc \
+  && ghcup install cabal \
+  && ghcup set ghc \
+  && ghcup set cabal
+
+# 验证安装结果
+RUN gcc --version && \
+    g++ --version && \
+    fpc -iV && \
+    javac -version && \
+    rustc --version && \
+    go version && \
+    ruby --version && \
+    mono --version && \
+    kotlinc -version && \
+    php --version && \
+    node --version && \
+    python3 --version && \
+    pypy3 --version && \
+    ghc --version && \
+    cabal --version
 
 ADD ./entrypoint.sh /root/entrypoint.sh
 ADD ./judge.yaml /root/judge.yaml
 ADD ./judge.yaml /root/.hydro/judge.yaml
 RUN chmod +x /root/entrypoint.sh
 
+# 安装 pm2 与 hydrojudge，并自动根据架构下载 sandbox
 RUN yarn global add pm2 @hydrooj/hydrojudge && \
-    wget https://github.com/criyle/go-judge/releases/download/v1.8.0/go-judge_1.8.0_linux_amd64 -O /usr/bin/sandbox && \
+    arch=$(apk --print-arch) && \
+    case "$arch" in \
+      x86_64)  url="https://github.com/criyle/go-judge/releases/download/v1.8.0/go-judge_1.8.0_linux_amd64" ;; \
+      aarch64) url="https://github.com/criyle/go-judge/releases/download/v1.8.0/go-judge_1.8.0_linux_arm64" ;; \
+      *) echo "Unsupported architecture: $arch" && exit 1 ;; \
+    esac && \
+    wget "$url" -O /usr/bin/sandbox && \
     chmod +x /usr/bin/sandbox
 
-ENTRYPOINT /root/entrypoint.sh
+ENTRYPOINT ["/root/entrypoint.sh"]

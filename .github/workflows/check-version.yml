@@ -85,6 +85,7 @@ jobs:
     if: ${{ needs.check-release.outputs.version != needs.check-release.outputs.latest_tag }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         registry: ['ghcr', 'dockerhub']
         component: ['backend', 'judge']
@@ -120,6 +121,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./${{ matrix.component }}
+          platforms: linux/amd64,linux/arm64/v8
           push: true
           tags: |
             ${{ matrix.registry == 'ghcr' && format('ghcr.io/{0}/{1}:{2}', needs.check-release.outputs.lower_owner, matrix.image_name, needs.check-release.outputs.version) || format('{0}/{1}:{2}', secrets.DOCKER_USERNAME, matrix.image_name, needs.check-release.outputs.version) }}

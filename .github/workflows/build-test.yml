@@ -1,0 +1,58 @@
+name: Build Docker Image
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ['linux/amd64', 'linux/arm64/v8']
+        component: ['backend', 'judge']
+        include:
+          - arch: linux/amd64
+            component: backend
+            image_name: hydro-docker-backend-alpine-test
+          - arch: linux/amd64
+            component: judge
+            image_name: hydro-docker-judge-alpine-test
+          - arch: linux/arm64/v8
+            component: backend
+            image_name: hydro-docker-backend-alpine-test
+          - arch: linux/arm64/v8
+            component: judge
+            image_name: hydro-docker-judge-alpine-test
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Sanitize arch name
+        id: sanitize
+        run: |
+          safe_arch=$(echo "${{ matrix.arch }}" | tr '/' '-')
+          echo "safe_arch=$safe_arch" >> $GITHUB_OUTPUT
+
+      - name: Build ${{ matrix.arch }} ${{ matrix.component }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.component }}
+          platforms: ${{ matrix.arch }}
+          push: false
+          tags: |
+            ${{ format('{0}:latest', matrix.image_name) }}
+          outputs: type=docker,dest=./${{ matrix.image_name }}-${{ steps.sanitize.outputs.safe_arch }}.tar
+
+      - name: Upload ${{ matrix.arch }} ${{ matrix.component }} image
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.image_name }}-${{ steps.sanitize.outputs.safe_arch }}
+          path: ${{ matrix.image_name }}-${{ steps.sanitize.outputs.safe_arch }}.tar
