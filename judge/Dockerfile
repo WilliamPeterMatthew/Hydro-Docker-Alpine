@@ -1,5 +1,7 @@
 FROM node:22-alpine3.22
 
+ENV PATH=/opt/kotlinc/bin:$PATH
+
 # 启用 main/community/testing 仓库
 RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.22/main"       >  /etc/apk/repositories && \
     echo "http://dl-cdn.alpinelinux.org/alpine/v3.22/community" >> /etc/apk/repositories && \
@@ -20,7 +22,6 @@ RUN apk add --no-cache \
       php \
       php-cli \
       nodejs \
-      python2 \
       python3 \
       py3-pip \
       pypy3 \
@@ -29,20 +30,28 @@ RUN apk add --no-cache \
       ca-certificates \
       linux-headers \
       git \
-      fpc \
-      kotlin
+      fpc
 
-# 建立 python 软链接
+# 安装 Python2.7.18
+RUN wget https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz && \
+    tar -xzf Python-2.7.18.tgz && \
+    cd Python-2.7.18 && \
+    ./configure --prefix=/usr/local && \
+    make -j$(nproc) && \
+    make altinstall && \
+    cd .. && rm -rf Python-2.7.18* && \
+    ln -sf /usr/local/bin/python2.7 /usr/bin/python2
+
+# 安装 Kotlin 1.9.25
+RUN wget https://github.com/JetBrains/kotlin/releases/download/v1.9.25/kotlin-compiler-1.9.25.zip && \
+    unzip kotlin-compiler-1.9.25.zip -d /opt && \
+    rm kotlin-compiler-1.9.25.zip
+
+# 建立 python3 软链接
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
 # 安装 Haskell 工具链 (ghc + cabal)
 RUN apk add --no-cache \
-      bash \
-      curl \
-      gcc \
-      g++ \
-      musl-dev \
-      make \
       ncurses-dev \
       gmp-dev \
   && curl -L \
