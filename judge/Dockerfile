@@ -58,19 +58,23 @@ RUN wget https://github.com/JetBrains/kotlin/releases/download/v1.9.25/kotlin-co
 # 建立 python3 软链接
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
-# 编译安装 GHC + Cabal
-RUN git clone --branch ghc-9.12.1 https://gitlab.haskell.org/ghc/ghc.git /tmp/ghc-src && \
-    cd /tmp/ghc-src && \
+# 下载并解压 GHC 9.6.2 源代码
+RUN wget https://downloads.haskell.org/~ghc/9.6.2/ghc-9.6.2-src.tar.xz && \
+    tar -xJf ghc-9.6.2-src.tar.xz && \
+    cd ghc-9.6.2 && \
     ./boot && \
     ./configure --prefix=/usr/local && \
-    make -j$(nproc) && make install && \
-    cd .. && rm -rf /tmp/ghc-src && \
-    curl -L https://downloads.haskell.org/cabal/cabal-install-3.10.1.0/cabal-install-3.10.1.0.tar.gz -o /tmp/cabal.tar.gz && \
-    tar -xzf /tmp/cabal.tar.gz -C /tmp && \
-    cd /tmp/cabal-install-3.10.1.0 && \
+    make -j$(nproc) && \
+    make install && \
+    cd .. && rm -rf ghc-9.6.2*
+
+# 安装 Cabal
+RUN curl -L https://downloads.haskell.org/cabal/cabal-install-3.10.1.0/cabal-install-3.10.1.0.tar.gz -o cabal.tar.gz && \
+    tar -xzf cabal.tar.gz && \
+    cd cabal-install-3.10.1.0 && \
     ./bootstrap.sh && \
     mv cabal /usr/local/bin/ && \
-    cd .. && rm -rf /tmp/cabal* 
+    cd .. && rm -rf cabal*
 
 # 验证安装结果
 RUN gcc --version && \
