@@ -67,6 +67,23 @@ RUN curl -L https://downloads.haskell.org/~ghcup/x86_64-linux-ghcup -o /usr/bin/
     ghcup set ghc latest && \
     ghcup set cabal latest
 
+# 验证安装结果
+RUN gcc --version && \
+    g++ --version && \
+    fpc -iV && \
+    javac -version && \
+    rustc --version && \
+    go version && \
+    ruby --version && \
+    mono --version && \
+    kotlinc -version && \
+    php --version && \
+    node --version && \
+    python2 --version && \
+    python3 --version && \
+    pypy3 --version && \
+    ghc --version && \
+    cabal --version
 
 ADD ./entrypoint.sh /root/entrypoint.sh
 ADD ./judge.yaml /root/judge.yaml
