@@ -10,6 +10,7 @@ RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.22/main"       >  /etc/apk/rep
 
 # 安装基础依赖与构建工具
 RUN apk add --no-cache \
+      bash \
       build-base \
       gcc \
       g++ \
@@ -18,7 +19,6 @@ RUN apk add --no-cache \
       gmp-dev \
       zlib-dev \
       make \
-      bash \
       curl \
       wget \
       tar \
@@ -58,23 +58,23 @@ RUN wget https://github.com/JetBrains/kotlin/releases/download/v1.9.25/kotlin-co
 # 建立 python3 软链接
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
-# 下载并解压 GHC 9.6.2 源代码
-RUN wget https://downloads.haskell.org/~ghc/9.6.2/ghc-9.6.2-src.tar.xz && \
-    tar -xJf ghc-9.6.2-src.tar.xz && \
-    cd ghc-9.6.2 && \
-    ./boot && \
-    ./configure --prefix=/usr/local && \
-    make -j$(nproc) && \
+# 安装 GHC
+ARG ARCH
+RUN case "$ARCH" in \
+      x86_64) GHC_URL="https://downloads.haskell.org/~ghc/9.6.2/ghc-9.6.2-x86_64-deb10-linux.tar.xz" ;; \
+      aarch64) GHC_URL="https://downloads.haskell.org/~ghc/9.6.2/ghc-9.6.2-aarch64-deb10-linux.tar.xz" ;; \
+      *) echo "Unsupported architecture: $ARCH" && exit 1 ;; \
+    esac && \
+    wget $GHC_URL -O /tmp/ghc.tar.xz && \
+    tar -xJf /tmp/ghc.tar.xz -C /tmp && \
+    /tmp/ghc-9.6.2*/configure --prefix=/usr/local && \
     make install && \
-    cd .. && rm -rf ghc-9.6.2*
+    rm -rf /tmp/ghc* /tmp/ghc.tar.xz
 
 # 安装 Cabal
-RUN curl -L https://downloads.haskell.org/cabal/cabal-install-3.10.1.0/cabal-install-3.10.1.0.tar.gz -o cabal.tar.gz && \
-    tar -xzf cabal.tar.gz && \
-    cd cabal-install-3.10.1.0 && \
-    ./bootstrap.sh && \
-    mv cabal /usr/local/bin/ && \
-    cd .. && rm -rf cabal*
+RUN curl -L https://downloads.haskell.org/cabal/cabal-install-3.10.1.0/cabal-install-3.10.1.0.tar.gz -o /tmp/cabal.tar.gz && \
+    tar -xzf /tmp/cabal.tar.gz -C /tmp && \
+    cd /tmp/cabal-install-3.10.1.0 && ./bootstrap.sh && mv cabal /usr/local/bin/ && cd .. && rm -rf /tmp/cabal*
 
 # 验证安装结果
 RUN gcc --version && \
