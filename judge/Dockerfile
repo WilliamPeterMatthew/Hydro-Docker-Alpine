@@ -59,11 +59,11 @@ RUN wget https://github.com/JetBrains/kotlin/releases/download/v1.9.25/kotlin-co
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
 # 安装 GHC
-ARG ARCH=$(apk --print-arch)
-RUN case "$ARCH" in \
+RUN arch=$(apk --print-arch) && \
+    case "$arch" in \
       x86_64) GHC_URL="https://downloads.haskell.org/~ghc/9.6.2/ghc-9.6.2-x86_64-deb10-linux.tar.xz" ;; \
       aarch64) GHC_URL="https://downloads.haskell.org/~ghc/9.6.2/ghc-9.6.2-aarch64-deb10-linux.tar.xz" ;; \
-      *) echo "Unsupported architecture: $ARCH" && exit 1 ;; \
+      *) echo "Unsupported architecture: $arch" && exit 1 ;; \
     esac && \
     wget $GHC_URL -O /tmp/ghc.tar.xz && \
     tar -xJf /tmp/ghc.tar.xz -C /tmp && \
@@ -101,10 +101,11 @@ RUN chmod +x /root/entrypoint.sh
 
 # 安装 pm2 与 hydrojudge，并自动根据架构下载 sandbox
 RUN yarn global add pm2 @hydrooj/hydrojudge && \
-    case "$ARCH" in \
+    arch=$(apk --print-arch) && \
+    case "$arch" in \
       x86_64)  url="https://github.com/criyle/go-judge/releases/download/v1.8.0/go-judge_1.8.0_linux_amd64" ;; \
       aarch64) url="https://github.com/criyle/go-judge/releases/download/v1.8.0/go-judge_1.8.0_linux_arm64" ;; \
-      *) echo "Unsupported architecture: $ARCH" && exit 1 ;; \
+      *) echo "Unsupported architecture: $arch" && exit 1 ;; \
     esac && \
     wget "$url" -O /usr/bin/sandbox && \
     chmod +x /usr/bin/sandbox
