@@ -1,0 +1,126 @@
+name: Version Check, Release and Build Docker Image
+
+on:
+  schedule:
+    - cron: '0 16 * * *'
+  workflow_dispatch:
+
+jobs:
+  check-release:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Shanghai
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version-extract.outputs.version }}
+      latest_tag: ${{ steps.get-release.outputs.latest_tag }}
+      lower_owner: ${{ steps.lowercase-owner.outputs.lower_owner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Process lowercase owner
+        id: lowercase-owner
+        run: |
+          LOWER_OWNER=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
+          echo "lower_owner=$LOWER_OWNER" >> $GITHUB_OUTPUT
+
+      - name: Get version via npm
+        id: version-extract
+        run: |
+          VERSION=$(npm view hydrooj version)
+          echo "version=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check latest release
+        id: get-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RESPONSE=$(curl -sfL -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/latest")
+          LATEST_TAG=$(echo "$RESPONSE" | jq -r '.tag_name // ""')
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+      - name: Update README
+        if: ${{ steps.version-extract.outputs.version != steps.get-release.outputs.latest_tag }}
+        run: |
+          DATE=$(date +'%Y-%m-%d')
+          NEW_LINE="> 构建日期: $DATE，版本: ${{ steps.version-extract.outputs.version }}"
+          sed -i '5d' README.md
+          sed -i "5i$NEW_LINE" README.md
+
+
+      - name: Commit changes
+        if: ${{ steps.version-extract.outputs.version != steps.get-release.outputs.latest_tag }}
+        run: |
+          git config user.name "Auto Updater"
+          git config user.email "auto@users.noreply.github.com"
+          git pull --rebase --autostash origin ${{ github.ref }}
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git add README.md
+          git commit -m "Update to ${{ steps.version-extract.outputs.version }}"
+          git push origin HEAD:${{ github.ref }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release
+        if: ${{ steps.version-extract.outputs.version != steps.get-release.outputs.latest_tag }}
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version-extract.outputs.version }}
+          body: |
+            Auto-generated release for version ${{ steps.version-extract.outputs.version }}
+
+  build-push:
+    needs: check-release
+    if: ${{ needs.check-release.outputs.version != needs.check-release.outputs.latest_tag }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        registry: ['ghcr', 'dockerhub']
+        component: ['backend', 'judge']
+        include:
+          - registry: ghcr
+            component: backend
+            image_name: hydro-docker-backend
+          - registry: ghcr
+            component: judge
+            image_name: hydro-docker-judge
+          - registry: dockerhub
+            component: backend
+            image_name: hydro-docker-backend
+          - registry: dockerhub
+            component: judge
+            image_name: hydro-docker-judge
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to ${{ matrix.registry }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ matrix.registry == 'ghcr' && github.repository_owner || secrets.DOCKER_USERNAME }}
+          password: ${{ matrix.registry == 'ghcr' && secrets.GITHUB_TOKEN || secrets.DOCKER_PASSWORD }}
+          registry: ${{ matrix.registry == 'ghcr' && 'ghcr.io' || '' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.component }}
+          push: true
+          tags: |
+            ${{ matrix.registry == 'ghcr' && format('ghcr.io/{0}/{1}:{2}', needs.check-release.outputs.lower_owner, matrix.image_name, needs.check-release.outputs.version) || format('{0}/{1}:{2}', secrets.DOCKER_USERNAME, matrix.image_name, needs.check-release.outputs.version) }}
+            ${{ matrix.registry == 'ghcr' && format('ghcr.io/{0}/{1}:latest', needs.check-release.outputs.lower_owner, matrix.image_name) || format('{0}/{1}:latest', secrets.DOCKER_USERNAME, matrix.image_name) }}

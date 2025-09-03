@@ -1,0 +1,157 @@
+name: Double Version Check and Build Docker Image
+
+on:
+  schedule:
+    - cron: '0 16 * * *'
+  workflow_dispatch:
+
+jobs:
+  check-release:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Shanghai
+    permissions:
+      contents: write
+    outputs:
+      build_backend: ${{ steps.version-check.outputs.build_backend }}
+      build_judge: ${{ steps.version-check.outputs.build_judge }}
+      backend_tag: ${{ steps.tag-generation.outputs.backend_tag }}
+      judge_tag: ${{ steps.tag-generation.outputs.judge_tag }}
+      lower_owner: ${{ steps.lowercase-owner.outputs.lower_owner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Process lowercase owner
+        id: lowercase-owner
+        run: |
+          LOWER_OWNER=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
+          echo "lower_owner=$LOWER_OWNER" >> $GITHUB_OUTPUT
+
+      - name: Read VERSION file
+        id: version-file
+        run: |
+          HYDROOJ_VERSION=$(grep 'hydrooj ' VERSION | cut -d' ' -f2 | tr -d 'v')
+          UI_VERSION=$(grep '@hydrooj/ui-default ' VERSION | cut -d' ' -f2 | tr -d 'v')
+          JUDGE_VERSION=$(grep '@hydrooj/hydrojudge ' VERSION | cut -d' ' -f2 | tr -d 'v')
+          echo "hydrooj_version=$HYDROOJ_VERSION" >> $GITHUB_OUTPUT
+          echo "ui_version=$UI_VERSION" >> $GITHUB_OUTPUT
+          echo "judge_version=$JUDGE_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get latest npm versions
+        id: npm-versions
+        run: |
+          echo "latest_hydrooj=$(npm view hydrooj version)" >> $GITHUB_OUTPUT
+          echo "latest_ui=$(npm view @hydrooj/ui-default version)" >> $GITHUB_OUTPUT
+          echo "latest_judge=$(npm view @hydrooj/hydrojudge version)" >> $GITHUB_OUTPUT
+
+      - name: Check version updates
+        id: version-check
+        run: |
+          hydro_updated=false
+          ui_updated=false
+          judge_updated=false
+
+          if [ "${{ steps.version-file.outputs.hydrooj_version }}" != "${{ steps.npm-versions.outputs.latest_hydrooj }}" ]; then
+            hydro_updated=true
+          fi
+
+          if [ "${{ steps.version-file.outputs.ui_version }}" != "${{ steps.npm-versions.outputs.latest_ui }}" ]; then
+            ui_updated=true
+          fi
+
+          if [ "${{ steps.version-file.outputs.judge_version }}" != "${{ steps.npm-versions.outputs.latest_judge }}" ]; then
+            judge_updated=true
+          fi
+
+          build_backend=false
+          build_judge=false
+
+          if $hydro_updated || $ui_updated; then
+            build_backend=true
+          fi
+          if $hydro_updated || $judge_updated; then
+            build_judge=true
+          fi
+
+          echo "build_backend=$build_backend" >> $GITHUB_OUTPUT
+          echo "build_judge=$build_judge" >> $GITHUB_OUTPUT
+
+      - name: Update VERSION file
+        if: ${{ steps.version-check.outputs.build_backend == 'true' || steps.version-check.outputs.build_judge == 'true' }}
+        run: |
+          sed -i "s/^hydrooj v.*/hydrooj v${{ steps.npm-versions.outputs.latest_hydrooj }}/" VERSION
+          sed -i "s/^@hydrooj\/ui-default v.*/@hydrooj\/ui-default v${{ steps.npm-versions.outputs.latest_ui }}/" VERSION
+          sed -i "s/^@hydrooj\/hydrojudge v.*/@hydrooj\/hydrojudge v${{ steps.npm-versions.outputs.latest_judge }}/" VERSION
+
+      - name: Generate component tags
+        if: ${{ steps.version-check.outputs.build_backend == 'true' || steps.version-check.outputs.build_judge == 'true' }}
+        id: tag-generation
+        run: |
+          BACKEND_TAG="v${{ steps.npm-versions.outputs.latest_hydrooj }}-ui${{ steps.npm-versions.outputs.latest_ui }}"
+          JUDGE_TAG="v${{ steps.npm-versions.outputs.latest_hydrooj }}-judge${{ steps.npm-versions.outputs.latest_judge }}"
+          echo "backend_tag=$BACKEND_TAG" >> $GITHUB_OUTPUT
+          echo "judge_tag=$JUDGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Commit version updates
+        if: ${{ steps.version-check.outputs.build_backend == 'true' || steps.version-check.outputs.build_judge == 'true' }}
+        run: |
+          git config user.name "Auto Updater"
+          git config user.email "auto@users.noreply.github.com"
+          git pull --rebase --autostash origin ${{ github.ref }}
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git add VERSION
+          git commit -m "chore: Update component versions"
+          git push origin HEAD:${{ github.ref }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-push:
+    needs: check-release
+    if: ${{ needs.check-release.outputs.build_backend == 'true' || needs.check-release.outputs.build_judge == 'true' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        registry: ['ghcr', 'dockerhub']
+        component: ${{ fromJson(needs.check-release.outputs.build_backend == 'true' && needs.check-release.outputs.build_judge == 'true' && '["backend","judge"]' || needs.check-release.outputs.build_backend == 'true' && '["backend"]' || '["judge"]') }}
+        include:
+          - registry: ghcr
+            component: backend
+            image_name: hydro-docker-backend
+          - registry: ghcr
+            component: judge
+            image_name: hydro-docker-judge
+          - registry: dockerhub
+            component: backend
+            image_name: hydro-docker-backend
+          - registry: dockerhub
+            component: judge
+            image_name: hydro-docker-judge
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to ${{ matrix.registry }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ matrix.registry == 'ghcr' && github.repository_owner || secrets.DOCKER_USERNAME }}
+          password: ${{ matrix.registry == 'ghcr' && secrets.GITHUB_TOKEN || secrets.DOCKER_PASSWORD }}
+          registry: ${{ matrix.registry == 'ghcr' && 'ghcr.io' || '' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.component }}
+          push: true
+          tags: |
+            ${{ matrix.registry == 'ghcr' && format('ghcr.io/{0}/{1}:{2}', needs.check-release.outputs.lower_owner, matrix.image_name, (matrix.component == 'backend' && needs.check-release.outputs.backend_tag || needs.check-release.outputs.judge_tag)) || format('{0}/{1}:{2}', secrets.DOCKER_USERNAME, matrix.image_name, (matrix.component == 'backend' && needs.check-release.outputs.backend_tag || needs.check-release.outputs.judge_tag)) }}
