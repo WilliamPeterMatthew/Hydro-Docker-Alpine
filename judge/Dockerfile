@@ -1,7 +1,6 @@
 FROM node:22-alpine3.22
 
 ENV PATH=/opt/kotlinc/bin:$PATH
-ENV PATH=/root/.ghcup/bin:$PATH
 
 # 启用 main/community/testing 仓库
 RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.22/main"       >  /etc/apk/repositories && \
@@ -9,36 +8,37 @@ RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.22/main"       >  /etc/apk/rep
     echo "http://dl-cdn.alpinelinux.org/alpine/edge/testing"    >> /etc/apk/repositories && \
     apk update
 
-# 安装基础工具链
+# 安装基础依赖与构建工具
 RUN apk add --no-cache \
       build-base \
       gcc \
       g++ \
+      musl-dev \
+      ncurses-dev \
+      gmp-dev \
+      zlib-dev \
+      make \
+      bash \
+      curl \
+      wget \
+      tar \
+      xz \
+      unzip \
+      git \
       openjdk21 \
       rust \
       go \
       ruby \
       mono \
-      bash \
       php \
       php-cli \
       nodejs \
       python3 \
       py3-pip \
       pypy3 \
-      wget \
-      curl \
       ca-certificates \
       linux-headers \
-      git \
-      fpc \
-      ncurses-dev \
-      gmp-dev \
-      zlib-dev \
-      tar \
-      xz \
-      unzip \
-      make
+      fpc
 
 # 安装 Python2.7.18
 RUN wget https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz && \
@@ -58,14 +58,19 @@ RUN wget https://github.com/JetBrains/kotlin/releases/download/v1.9.25/kotlin-co
 # 建立 python3 软链接
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
-# 安装 ghcup + GHC + Cabal
-RUN curl -L https://downloads.haskell.org/~ghcup/x86_64-linux-ghcup -o /usr/bin/ghcup && \
-    chmod +x /usr/bin/ghcup && \
-    export HOME=/root && \
-    ghcup install ghc latest && \
-    ghcup install cabal latest && \
-    ghcup set ghc latest && \
-    ghcup set cabal latest
+# 编译安装 GHC + Cabal
+RUN git clone --branch ghc-9.6.2 https://gitlab.haskell.org/ghc/ghc.git /tmp/ghc-src && \
+    cd /tmp/ghc-src && \
+    ./boot && \
+    ./configure --prefix=/usr/local && \
+    make -j$(nproc) && make install && \
+    cd .. && rm -rf /tmp/ghc-src && \
+    curl -L https://downloads.haskell.org/cabal/cabal-install-3.10.1.0/cabal-install-3.10.1.0.tar.gz -o /tmp/cabal.tar.gz && \
+    tar -xzf /tmp/cabal.tar.gz -C /tmp && \
+    cd /tmp/cabal-install-3.10.1.0 && \
+    ./bootstrap.sh && \
+    mv cabal /usr/local/bin/ && \
+    cd .. && rm -rf /tmp/cabal* 
 
 # 验证安装结果
 RUN gcc --version && \
