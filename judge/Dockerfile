@@ -1,6 +1,7 @@
 FROM node:22-alpine3.22
 
 ENV PATH=/opt/kotlinc/bin:$PATH
+ENV PATH=/root/.ghcup/bin:$PATH
 
 # 启用 main/community/testing 仓库
 RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.22/main"       >  /etc/apk/repositories && \
@@ -30,7 +31,14 @@ RUN apk add --no-cache \
       ca-certificates \
       linux-headers \
       git \
-      fpc
+      fpc \
+      ncurses-dev \
+      gmp-dev \
+      zlib-dev \
+      tar \
+      xz \
+      unzip \
+      make
 
 # 安装 Python2.7.18
 RUN wget https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz && \
@@ -50,37 +58,15 @@ RUN wget https://github.com/JetBrains/kotlin/releases/download/v1.9.25/kotlin-co
 # 建立 python3 软链接
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
-# 安装 Haskell 工具链 (ghc + cabal)
-RUN apk add --no-cache \
-      ncurses-dev \
-      gmp-dev \
-  && curl -L \
-      https://downloads.haskell.org/~ghcup/x86_64-linux-ghcup \
-      -o /usr/bin/ghcup \
-  && chmod +x /usr/bin/ghcup \
-  && export HOME=/root \
-  && ghcup install ghc \
-  && ghcup install cabal \
-  && ghcup set ghc \
-  && ghcup set cabal
+# 安装 ghcup + GHC + Cabal
+RUN curl -L https://downloads.haskell.org/~ghcup/x86_64-linux-ghcup -o /usr/bin/ghcup && \
+    chmod +x /usr/bin/ghcup && \
+    export HOME=/root && \
+    ghcup install ghc latest && \
+    ghcup install cabal latest && \
+    ghcup set ghc latest && \
+    ghcup set cabal latest
 
-# 验证安装结果
-RUN gcc --version && \
-    g++ --version && \
-    fpc -iV && \
-    javac -version && \
-    rustc --version && \
-    go version && \
-    ruby --version && \
-    mono --version && \
-    kotlinc -version && \
-    php --version && \
-    node --version && \
-    python2 --version && \
-    python3 --version && \
-    pypy3 --version && \
-    ghc --version && \
-    cabal --version
 
 ADD ./entrypoint.sh /root/entrypoint.sh
 ADD ./judge.yaml /root/judge.yaml
