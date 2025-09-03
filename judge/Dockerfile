@@ -20,6 +20,7 @@ RUN apk add --no-cache \
       php \
       php-cli \
       nodejs \
+      python2 \
       python3 \
       py3-pip \
       pypy3 \
@@ -28,7 +29,8 @@ RUN apk add --no-cache \
       ca-certificates \
       linux-headers \
       git \
-      fpc
+      fpc \
+      kotlin
 
 # 建立 python 软链接
 RUN ln -sf /usr/bin/python3 /usr/bin/python
@@ -65,6 +67,7 @@ RUN gcc --version && \
     kotlinc -version && \
     php --version && \
     node --version && \
+    python2 --version && \
     python3 --version && \
     pypy3 --version && \
     ghc --version && \
