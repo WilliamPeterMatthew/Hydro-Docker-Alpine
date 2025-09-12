@@ -2,7 +2,7 @@
 
 > 以下内容魔改自 [源仓库](https://github.com/hydro-dev/Hydro) 的 `Hydro/install/docker` 文件夹，脚本内容不一定为最新版，请核对后使用
 > 
-> 构建日期: 2025-09-04，版本: v5.0.0-beta.8
+> 构建日期: 2025-09-13，版本: v5.0.0-beta.9
 
 ![backend Pulls](https://img.shields.io/docker/pulls/petermatthew/hydro-docker-backend?label=backend%20pulls)
 ![backend Image Size](https://img.shields.io/docker/image-size/petermatthew/hydro-docker-backend?sort=date&label=backend%20size)
