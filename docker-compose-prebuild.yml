@@ -16,7 +16,6 @@ services:
     restart: always
     depends_on:
       - oj-mongo
-      - oj-minio
     volumes:
       - ./data/file:/data/file
       - ./data/backend:/root/.hydro
