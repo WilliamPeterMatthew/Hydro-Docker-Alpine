@@ -119,20 +119,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        registry: ['ghcr', 'dockerhub']
         component: ${{ fromJson(needs.check-release.outputs.build_backend == 'true' && needs.check-release.outputs.build_judge == 'true' && '["backend","judge"]' || needs.check-release.outputs.build_backend == 'true' && '["backend"]' || '["judge"]') }}
         include:
-          - registry: ghcr
-            component: backend
+          - component: backend
             image_name: hydro-docker-backend-alpine
-          - registry: ghcr
-            component: judge
-            image_name: hydro-docker-judge-alpine
-          - registry: dockerhub
-            component: backend
-            image_name: hydro-docker-backend-alpine
-          - registry: dockerhub
-            component: judge
+          - component: judge
             image_name: hydro-docker-judge-alpine
     permissions:
       contents: read
@@ -142,12 +133,18 @@ jobs:
       
       - uses: docker/setup-buildx-action@v3
 
-      - name: Login to ${{ matrix.registry }}
+      - name: Login to DockerHub
         uses: docker/login-action@v3
         with:
-          username: ${{ matrix.registry == 'ghcr' && github.repository_owner || secrets.DOCKER_USERNAME }}
-          password: ${{ matrix.registry == 'ghcr' && secrets.GITHUB_TOKEN || secrets.DOCKER_PASSWORD }}
-          registry: ${{ matrix.registry == 'ghcr' && 'ghcr.io' || '' }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
 
       - name: Build and push
         uses: docker/build-push-action@v5
@@ -156,4 +153,5 @@ jobs:
           platforms: linux/amd64,linux/arm64/v8
           push: true
           tags: |
-            ${{ matrix.registry == 'ghcr' && format('ghcr.io/{0}/{1}:{2}', needs.check-release.outputs.lower_owner, matrix.image_name, (matrix.component == 'backend' && needs.check-release.outputs.backend_tag || needs.check-release.outputs.judge_tag)) || format('{0}/{1}:{2}', secrets.DOCKER_USERNAME, matrix.image_name, (matrix.component == 'backend' && needs.check-release.outputs.backend_tag || needs.check-release.outputs.judge_tag)) }}
+            ghcr.io/${{ needs.check-release.outputs.lower_owner }}/${{ matrix.image_name }}:${{ matrix.component == 'backend' && needs.check-release.outputs.backend_tag || needs.check-release.outputs.judge_tag }}
+            ${{ secrets.DOCKER_USERNAME }}/${{ matrix.image_name }}:${{ matrix.component == 'backend' && needs.check-release.outputs.backend_tag || needs.check-release.outputs.judge_tag }}
